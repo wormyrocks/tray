@@ -5,6 +5,7 @@ struct tray_menu;
 
 struct tray {
   char *icon;
+  char *dark_icon;
   struct tray_menu *menu;
 };
 
@@ -48,9 +49,11 @@ static GtkMenuShell *_tray_menu(struct tray_menu *m) {
         item = gtk_menu_item_new_with_label(m->text);
         gtk_menu_item_set_submenu(GTK_MENU_ITEM(item),
                                   GTK_WIDGET(_tray_menu(m->submenu)));
-      } else {
+      } else if (m->checked){
         item = gtk_check_menu_item_new_with_label(m->text);
         gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(item), !!m->checked);
+      } else {
+        item = gtk_menu_item_new_with_label(m->text);
       }
       gtk_widget_set_sensitive(item, !m->disabled);
       if (m->cb != NULL) {
@@ -157,7 +160,7 @@ static int tray_init(struct tray *tray) {
       auto_switch = true;
       icon = ((id(*)(id, SEL))objc_msgSend)((id)objc_getClass("NSImage"), sel_registerName("alloc"));
     ((void(*)(id, SEL, id))objc_msgSend)(icon, sel_registerName("initWithContentsOfFile:"),
-      ((id(*)(id, SEL, char *))objc_msgSend)((id)objc_getClass("NSString"), sel_registerName("stringWithUTF8String:"), tray->icon));
+      ((id(*)(id, SEL, char *))objc_msgSend)((id)objc_getClass("NSString"), sel_registerName("stringWithUTF8String:"), dark_mode ? tray->dark_icon : tray->icon));
     
     // bool out = true;
     // object_setInstanceVariable(icon, "template", &out);
