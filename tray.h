@@ -144,54 +144,43 @@ static int tray_init(struct tray *tray) {
     // check if we're in dark mode
   bool dark_mode = false;
   bool auto_switch = false;
-/*#ifdef __MAC_OS_X_VERSION_MIN_REQUIRED
-#if __MAC_OS_X_VERSION_MIN_REQUIRED < 101400
-  // pre mojave, no dark mode
-#else
-*/
     id userdefaults = ((id(*)(id, SEL))objc_msgSend)((id)objc_getClass("NSUserDefaults"), sel_registerName("standardUserDefaults"));
     id keystr = ((id(*)(id,SEL,id))objc_msgSend)(userdefaults, sel_registerName("stringForKey:"),
                   ((id(*)(id, SEL, char *))objc_msgSend)((id)objc_getClass("NSString"), sel_registerName("stringWithUTF8String:"), "AppleInterfaceStyle"));
     char* ckeystr = ((char*(*)(id,SEL))objc_msgSend)(keystr, sel_registerName("UTF8String"));
     if (ckeystr != NULL && strcmp(ckeystr, "Dark") == 0)
       dark_mode = true; 
-//#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101500
     id keystr2 = ((id(*)(id,SEL,id))objc_msgSend)(userdefaults, sel_registerName("stringForKey:"),
                   ((id(*)(id, SEL, char *))objc_msgSend)((id)objc_getClass("NSString"), sel_registerName("stringWithUTF8String:"), "AppleInterfaceStyleSwitchesAutomatically"));
     char* ckeystr2 = ((char*(*)(id,SEL))objc_msgSend)(keystr2, sel_registerName("UTF8String"));
-    if (ckeystr != NULL && strcmp(ckeystr, "Dark") == 0)
+    if (ckeystr2 != NULL)
       auto_switch = true;
-/*
-#endif
-#endif
-#endif
-*/
-    icon = ((id(*)(id, SEL))objc_msgSend)((id)objc_getClass("NSImage"), sel_registerName("alloc"));
+      icon = ((id(*)(id, SEL))objc_msgSend)((id)objc_getClass("NSImage"), sel_registerName("alloc"));
     ((void(*)(id, SEL, id))objc_msgSend)(icon, sel_registerName("initWithContentsOfFile:"),
       ((id(*)(id, SEL, char *))objc_msgSend)((id)objc_getClass("NSString"), sel_registerName("stringWithUTF8String:"), tray->icon));
     
-    bool out = true;
-    object_setInstanceVariable(icon, "template", &out);
+    // bool out = true;
+    // object_setInstanceVariable(icon, "template", &out);
     
     pool = ((id(*)(id, SEL))objc_msgSend)((id)objc_getClass("NSAutoreleasePool"),
                           sel_registerName("new"));
   
-    ((void(*)(id, SEL))objc_msgSend)((id)objc_getClass("NSApplication"),
+    id app = ((id(*)(id, SEL))objc_msgSend)((id)objc_getClass("NSApplication"),
                           sel_registerName("sharedApplication"));
   
     Class trayDelegateClass = objc_allocateClassPair(objc_getClass("NSObject"), "Tray", 0);
     class_addProtocol(trayDelegateClass, objc_getProtocol("NSApplicationDelegate"));
     class_addMethod(trayDelegateClass, sel_registerName("menuCallback:"), (IMP)menu_callback, "v@:@");
     objc_registerClassPair(trayDelegateClass);
-  
-    id trayDelegate = ((id(*)(id, SEL))objc_msgSend)((id)trayDelegateClass,
-                          sel_registerName("new"));
-  
-    app = ((id(*)(id, SEL))objc_msgSend)((id)objc_getClass("NSApplication"),
-                          sel_registerName("sharedApplication"));
-  
-    ((void(*)(id, SEL,id))objc_msgSend)(app, sel_registerName("setDelegate:"), trayDelegate);
-  
+
+    // from https://github.com/glfw/glfw/issues/1024
+    id orig_delegate = ((id(*)(id, SEL))objc_msgSend)(app, sel_registerName("delegate"));
+    id origClass = ((id(*)(id, SEL))objc_msgSend)((id)orig_delegate, sel_registerName("className"));
+    char* delegateType = ((char*(*)(id,SEL))objc_msgSend)(origClass, sel_registerName("UTF8String"));
+    Class original_c = objc_getClass(delegateType);
+    Method swizzled_m = class_getInstanceMethod(trayDelegateClass, sel_registerName("menuCallback:"));
+    bool didAddMethod = class_addMethod(original_c, sel_registerName("menuCallback:"), method_getImplementation(swizzled_m), method_getTypeEncoding(swizzled_m));
+
     statusBar = ((id(*)(id, SEL))objc_msgSend)((id)objc_getClass("NSStatusBar"),
                           sel_registerName("systemStatusBar"));
 
@@ -201,7 +190,7 @@ static int tray_init(struct tray *tray) {
     ((void(*)(id, SEL, bool))objc_msgSend)(statusItem, sel_registerName("setHighlightMode:"), true);
     statusBarButton = ((id(*)(id, SEL))objc_msgSend)(statusItem, sel_registerName("button"));
     tray_update(tray);
-    ((void(*)(id, SEL, bool))objc_msgSend)(app, sel_registerName("activateIgnoringOtherApps:"), true);
+    // ((void(*)(id, SEL, bool))objc_msgSend)(app, sel_registerName("activateIgnoringOtherApps:"), true);
     return 0;
 }
 
