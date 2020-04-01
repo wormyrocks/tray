@@ -91,8 +91,10 @@ static void tray_exit() { loop_result = -1; }
 #elif defined(TRAY_APPKIT)
 #include <objc/objc-runtime.h>
 #include <limits.h>
+#include <availability.h>
 
 static id app;
+static id icon;
 static id pool;
 static id statusBar;
 static id statusItem;
@@ -118,7 +120,7 @@ static id _tray_menu(struct tray_menu *m) {
         ((void(*)(id, SEL, bool))objc_msgSend)(menuItem, sel_registerName("setEnabled:"), (m->disabled ? false : true));
           ((void(*)(id, SEL, int))objc_msgSend)(menuItem, sel_registerName("setState:"), (m->checked ? 1 : 0));
           ((void(*)(id, SEL, id))objc_msgSend)(menuItem, sel_registerName("setRepresentedObject:"),
-            ((id(*)(id, SEL, struct tray_menu*))objc_msgSend)((id)objc_getClass("NSValue"), sel_registerName("valueWithPointer:"), m));
+            ((id(*)(id, SEL, struct tray_menu *))objc_msgSend)((id)objc_getClass("NSValue"), sel_registerName("valueWithPointer:"), m));
   
           ((void(*)(id, SEL, id))objc_msgSend)(menu, sel_registerName("addItem:"), menuItem);
   
@@ -139,7 +141,38 @@ static void menu_callback(id self, SEL cmd, id sender) {
     }
 }
 static int tray_init(struct tray *tray) {
-  
+    // check if we're in dark mode
+  bool dark_mode = false;
+  bool auto_switch = false;
+/*#ifdef __MAC_OS_X_VERSION_MIN_REQUIRED
+#if __MAC_OS_X_VERSION_MIN_REQUIRED < 101400
+  // pre mojave, no dark mode
+#else
+*/
+    id userdefaults = ((id(*)(id, SEL))objc_msgSend)((id)objc_getClass("NSUserDefaults"), sel_registerName("standardUserDefaults"));
+    id keystr = ((id(*)(id,SEL,id))objc_msgSend)(userdefaults, sel_registerName("stringForKey:"),
+                  ((id(*)(id, SEL, char *))objc_msgSend)((id)objc_getClass("NSString"), sel_registerName("stringWithUTF8String:"), "AppleInterfaceStyle"));
+    char* ckeystr = ((char*(*)(id,SEL))objc_msgSend)(keystr, sel_registerName("UTF8String"));
+    if (ckeystr != NULL && strcmp(ckeystr, "Dark") == 0)
+      dark_mode = true; 
+//#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101500
+    id keystr2 = ((id(*)(id,SEL,id))objc_msgSend)(userdefaults, sel_registerName("stringForKey:"),
+                  ((id(*)(id, SEL, char *))objc_msgSend)((id)objc_getClass("NSString"), sel_registerName("stringWithUTF8String:"), "AppleInterfaceStyleSwitchesAutomatically"));
+    char* ckeystr2 = ((char*(*)(id,SEL))objc_msgSend)(keystr2, sel_registerName("UTF8String"));
+    if (ckeystr != NULL && strcmp(ckeystr, "Dark") == 0)
+      auto_switch = true;
+/*
+#endif
+#endif
+#endif
+*/
+    icon = ((id(*)(id, SEL))objc_msgSend)((id)objc_getClass("NSImage"), sel_registerName("alloc"));
+    ((void(*)(id, SEL, id))objc_msgSend)(icon, sel_registerName("initWithContentsOfFile:"),
+      ((id(*)(id, SEL, char *))objc_msgSend)((id)objc_getClass("NSString"), sel_registerName("stringWithUTF8String:"), tray->icon));
+    
+    bool out = true;
+    object_setInstanceVariable(icon, "template", &out);
+    
     pool = ((id(*)(id, SEL))objc_msgSend)((id)objc_getClass("NSAutoreleasePool"),
                           sel_registerName("new"));
   
@@ -191,9 +224,7 @@ static int tray_loop(int blocking) {
 }
 
 static void tray_update(struct tray *tray) {
-  ((void(*)(id, SEL, id))objc_msgSend)(statusBarButton, sel_registerName("setImage:"), 
-    ((id(*)(id, SEL, id))objc_msgSend)((id)objc_getClass("NSImage"), sel_registerName("imageNamed:"), 
-      ((id(*)(id, SEL, char *))objc_msgSend)((id)objc_getClass("NSString"), sel_registerName("stringWithUTF8String:"), tray->icon)));
+  ((void(*)(id, SEL, id))objc_msgSend)(statusBarButton, sel_registerName("setImage:"), icon);
 
   ((void(*)(id, SEL, id))objc_msgSend)(statusItem, sel_registerName("setMenu:"), _tray_menu(tray->menu));
 }
